@@ -25,13 +25,32 @@ docker compose ps
 Open:
 
 ```text
-http://154.64.230.23
+http://127.0.0.1:8088
 ```
 
 Health check:
 
 ```bash
-curl http://154.64.230.23/api/health
+curl http://127.0.0.1:8088/api/health
+```
+
+When the server already hosts other projects, keep host Nginx on ports 80/443
+and proxy the Feishu management domain to this app:
+
+```nginx
+server {
+    listen 80;
+    server_name your-feishu-domain.example.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:8088;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
 ```
 
 ## Update deployment
