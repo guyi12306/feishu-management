@@ -28,6 +28,7 @@ dist/
 *.tsbuildinfo
 web/vite.config.js
 web/vite.config.d.ts
+*.tar.gz
 
 # 编辑器
 .vscode/
