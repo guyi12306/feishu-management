@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app.agent.llm import LlmClient, LlmError  # noqa: E402
 from app import db  # noqa: E402
 from app.api import bitables as bitables_api  # noqa: E402
+from app.api import chats as chats_api  # noqa: E402
 from app.engine import executor  # noqa: E402
 from app.engine import dispatcher  # noqa: E402
 from app.main import app  # noqa: E402
@@ -68,6 +69,18 @@ class SmokeTest(unittest.TestCase):
                     client.get("/api/bitables/app123/tables/tbl123/fields").json()[0]["name"],
                     "状态",
                 )
+
+    def test_chat_resource_endpoint(self):
+        class FakeLarkClient:
+            async def list_chats(self):
+                return [{"chat_id": "oc_123", "name": "测试群"}]
+
+        with TestClient(app) as client:
+            client.post("/api/login", json={"username": "admin", "password": "admin123"})
+            with patch.object(chats_api.LarkClient, "for_user", return_value=FakeLarkClient()):
+                payload = client.get("/api/chats").json()
+
+        self.assertEqual("oc_123", payload[0]["chat_id"])
 
     def test_bot_mention_dispatch_matches_applied_workflow(self):
         conn = db.get_conn()

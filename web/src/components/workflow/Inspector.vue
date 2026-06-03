@@ -3,6 +3,7 @@ import { computed, ref, watch } from "vue";
 import { Trash2, X } from "lucide-vue-next";
 
 import { bitablesApi, type Bitable, type BitableTable } from "@/api/bitables";
+import { chatsApi, type Chat } from "@/api/chats";
 import type { FeishuBot } from "@/api/settings";
 import type { NodeTypeRegistry } from "@/api/workflows";
 import { metaOf } from "./nodeMeta";
@@ -47,9 +48,12 @@ const emit = defineEmits<{
 const exampleTemplate = "{{nodes.a1.count}}";
 const bitables = ref<Bitable[]>([]);
 const tables = ref<BitableTable[]>([]);
+const chats = ref<Chat[]>([]);
 const loadingBitables = ref(false);
 const loadingTables = ref(false);
+const loadingChats = ref(false);
 const bitableError = ref("");
+const chatError = ref("");
 
 const fields = computed<Record<string, FieldSchema>>(() => {
   if (!props.node || !props.registry) return {};
@@ -130,6 +134,22 @@ async function loadTables() {
   }
 }
 
+async function loadChats() {
+  if (!props.open || !props.node) return;
+  const hasChatField = Object.values(fields.value).some((field) => field.type === "chat");
+  if (!hasChatField) return;
+  loadingChats.value = true;
+  chatError.value = "";
+  try {
+    chats.value = await chatsApi.list(effectiveBotId.value);
+  } catch (e: any) {
+    chats.value = [];
+    chatError.value = e?.response?.data?.detail ?? e?.message ?? "群聊加载失败";
+  } finally {
+    loadingChats.value = false;
+  }
+}
+
 watch(
   () => [props.open, props.node?.id, effectiveBotId.value],
   () => {
@@ -142,6 +162,14 @@ watch(
   () => [props.open, props.node?.id, selectedAppToken.value, effectiveBotId.value],
   () => {
     loadTables();
+  },
+  { immediate: true }
+);
+
+watch(
+  () => [props.open, props.node?.id, effectiveBotId.value],
+  () => {
+    loadChats();
   },
   { immediate: true }
 );
@@ -313,6 +341,30 @@ function setBitableToken(val: string) {
                 </select>
               </div>
 
+              <div v-else-if="field.type === 'chat'" class="space-y-2">
+                <input
+                  class="input"
+                  :value="props.node.config[key] ?? ''"
+                  placeholder="粘贴 chat_id"
+                  @input="(e) => setVal(key, (e.target as HTMLInputElement).value)"
+                />
+                <select
+                  class="input"
+                  :disabled="loadingChats"
+                  :value="props.node.config[key] ?? ''"
+                  @change="(e) => setVal(key, (e.target as HTMLSelectElement).value)"
+                >
+                  <option value="">{{ loadingChats ? "加载中..." : "从群聊列表选择" }}</option>
+                  <option
+                    v-for="chat in chats"
+                    :key="chat.chat_id"
+                    :value="chat.chat_id"
+                  >
+                    {{ chat.name || chat.chat_id }}
+                  </option>
+                </select>
+              </div>
+
               <select
                 v-else-if="field.type === 'bitable_table'"
                 class="input"
@@ -366,6 +418,10 @@ function setBitableToken(val: string) {
 
           <div v-if="bitableError" class="text-caption text-danger mt-3">
             {{ bitableError }}
+          </div>
+
+          <div v-if="chatError" class="text-caption text-danger mt-3">
+            {{ chatError }}
           </div>
 
           <button

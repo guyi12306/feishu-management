@@ -296,7 +296,12 @@ def node_types():
                 "category": "action",
                 "label": "发送消息",
                 "schema": {
-                    "chat_id": {"type": "string", "label": "目标群/人", "required": True},
+                    "chat_id": {
+                        "type": "chat",
+                        "label": "目标群/人",
+                        "required": True,
+                        "description": "可从群聊列表选择，也可粘贴 chat_id",
+                    },
                     "template": {"type": "text", "label": "消息模板", "required": True},
                 },
             },
