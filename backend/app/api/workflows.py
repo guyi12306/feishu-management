@@ -225,6 +225,13 @@ def node_types():
                 "category": "trigger",
                 "label": "@机器人触发",
                 "schema": {
+                    "bot_id": {
+                        "type": "bot",
+                        "label": "机器人",
+                        "default": "default",
+                        "required": True,
+                        "description": "只有这个机器人收到 @ 消息时才触发",
+                    },
                     "chat_type": {
                         "type": "enum",
                         "label": "会话类型",
@@ -413,8 +420,6 @@ def apply_workflow(wid: int, user: dict = CurrentUser):
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="草稿不存在")
 
     graph = parse_json(row["graph"]) or {"nodes": [], "edges": []}
-    if row["bot_id"] and not feishu_bots.bot_exists(user["id"], row["bot_id"]):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="工作流选择的机器人不存在")
     _validate_apply_graph(graph)
     nodes = graph.get("nodes") or []
     triggers = [n for n in nodes if str(n.get("type", "")).startswith("trigger.")]
@@ -422,6 +427,18 @@ def apply_workflow(wid: int, user: dict = CurrentUser):
     has_schedule = any(n.get("type") == "trigger.schedule" for n in triggers)
     has_bitable = any(n.get("type") == "trigger.bitable_change" for n in triggers)
     has_bot_mention = any(n.get("type") == "trigger.bot_mention" for n in triggers)
+    bot_mention_bot_id = next(
+        (
+            str((n.get("config") or {}).get("bot_id") or "").strip()
+            for n in triggers
+            if n.get("type") == "trigger.bot_mention"
+            and str((n.get("config") or {}).get("bot_id") or "").strip()
+        ),
+        None,
+    )
+    effective_bot_id = bot_mention_bot_id or row["bot_id"]
+    if effective_bot_id and not feishu_bots.bot_exists(user["id"], effective_bot_id):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="工作流选择的机器人不存在")
 
     applied_target: dict = {"engine": "internal"}
     info: dict = {}
@@ -450,10 +467,10 @@ def apply_workflow(wid: int, user: dict = CurrentUser):
         applied_target["bot_mention"] = True
 
     conn.execute(
-        "UPDATE workflow_drafts SET status = 'applied', "
+        "UPDATE workflow_drafts SET status = 'applied', bot_id = ?, "
         "applied_target = ?, last_applied_at = datetime('now') "
         "WHERE id = ?",
-        (dump_json(applied_target), wid),
+        (effective_bot_id, dump_json(applied_target), wid),
     )
     return {
         "ok": True,

@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { Trash2, X } from "lucide-vue-next";
 
+import type { FeishuBot } from "@/api/settings";
 import type { NodeTypeRegistry } from "@/api/workflows";
 import { metaOf } from "./nodeMeta";
 
@@ -25,6 +26,7 @@ interface Props {
   node: SelectedNode | null;
   /** 抽屉是否打开;通常 node !== null 时打开 */
   open: boolean;
+  bots?: FeishuBot[];
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{
@@ -39,6 +41,17 @@ const fields = computed<Record<string, FieldSchema>>(() => {
   if (!props.node || !props.registry) return {};
   const spec = props.registry.nodes.find((n) => n.type === props.node!.nodeType);
   return (spec?.schema ?? {}) as unknown as Record<string, FieldSchema>;
+});
+
+const botOptions = computed(() => {
+  const options = (props.bots ?? []).map((bot) => ({
+    value: bot.id,
+    label: bot.is_default ? `${bot.name}（默认）` : bot.name,
+  }));
+  if (!options.some((item) => item.value === "default")) {
+    options.unshift({ value: "default", label: "默认机器人" });
+  }
+  return options;
 });
 
 function setVal(key: string, val: any) {
@@ -108,6 +121,17 @@ function setVal(key: string, val: any) {
               >
                 <option v-for="opt in field.options ?? []" :key="opt" :value="opt">
                   {{ opt }}
+                </option>
+              </select>
+
+              <select
+                v-else-if="field.type === 'bot'"
+                class="input"
+                :value="props.node.config[key] ?? field.default ?? 'default'"
+                @change="(e) => setVal(key, (e.target as HTMLSelectElement).value)"
+              >
+                <option v-for="bot in botOptions" :key="bot.value" :value="bot.value">
+                  {{ bot.label }}
                 </option>
               </select>
 

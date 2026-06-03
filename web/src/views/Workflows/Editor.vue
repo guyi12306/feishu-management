@@ -248,7 +248,9 @@ function onDragOver(e: DragEvent) {
 function defaultConfig(type: string): Record<string, any> {
   if (type === "trigger.schedule") return { cron: "0 9 * * *", tz: "Asia/Shanghai" };
   if (type === "trigger.bitable_change") return { event: "新增" };
-  if (type === "trigger.bot_mention") return { chat_type: "全部" };
+  if (type === "trigger.bot_mention") {
+    return { bot_id: store.current?.bot_id || "default", chat_type: "全部" };
+  }
   if (type === "action.bitable_update") return { fields: "{\n  \"状态\": \"已处理\"\n}" };
   if (type === "action.http") return { method: "GET" };
   return {};
@@ -530,6 +532,7 @@ const savedLabel = computed(() => {
       :registry="store.nodeTypes"
       :node="selectedNode"
       :open="inspectorOpen && !runsOpen"
+      :bots="bots"
       @update="updateNodeConfig"
       @remove="(id) => { removeNode(id); inspectorOpen = false; }"
       @close="inspectorOpen = false; selectedNodeId = null;"

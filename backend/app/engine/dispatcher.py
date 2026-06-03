@@ -108,13 +108,14 @@ def _find_bot_mention_matching(rows, event: dict, bot_id: str | None) -> list[tu
 
     hits: list[tuple[int, dict]] = []
     for row in rows:
-        if not _workflow_matches_bot(row["bot_id"], bot_id):
-            continue
         graph = parse_json(row["graph"]) or {}
         for node in graph.get("nodes", []):
             if node.get("type") != "trigger.bot_mention":
                 continue
             config = node.get("config") or {}
+            trigger_bot_id = str(config.get("bot_id") or "").strip() or row["bot_id"]
+            if not _workflow_matches_bot(trigger_bot_id, bot_id):
+                continue
             keyword = str(config.get("keyword") or "").strip()
             if keyword and keyword not in text:
                 continue

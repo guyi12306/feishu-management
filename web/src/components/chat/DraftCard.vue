@@ -68,7 +68,7 @@ function labelFor(type: string) {
 function previewConfig(node: WorkflowNode) {
   const c = node.config ?? {};
   if (node.type === "trigger.schedule") return c.cron ?? "—";
-  if (node.type === "trigger.bot_mention") return c.keyword ? `关键词: ${c.keyword}` : (c.chat_type ?? "全部");
+  if (node.type === "trigger.bot_mention") return `${c.bot_id ?? "default"} · ${c.keyword ? `关键词: ${c.keyword}` : (c.chat_type ?? "全部")}`;
   if (node.type === "action.send_message") return c.chat_id ?? "—";
   if (node.type === "action.bitable_query") return c.table_id ?? "—";
   if (node.type === "action.bitable_update") return `${c.table_id ?? "—"} · ${c.record_id ?? "—"}`;

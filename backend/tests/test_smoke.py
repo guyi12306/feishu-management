@@ -54,7 +54,11 @@ class SmokeTest(unittest.TestCase):
                     "id": "t1",
                     "type": "trigger.bot_mention",
                     "position": {"x": 80, "y": 120},
-                    "config": {"chat_type": "群聊", "keyword": "日报"},
+                    "config": {
+                        "bot_id": "bot_a",
+                        "chat_type": "全部",
+                        "keyword": "report",
+                    },
                 }
             ],
             "edges": [],
@@ -69,17 +73,25 @@ class SmokeTest(unittest.TestCase):
         event = {
             "message": {
                 "chat_type": "group",
-                "content": db.dump_json({"text": "@机器人 生成日报"}),
+                "content": db.dump_json({"text": "@bot report"}),
             }
         }
 
         hits = dispatcher.find_matching(
             user_id,
             event,
+            bot_id="bot_a",
+            event_type="im.message.receive_v1",
+        )
+        misses = dispatcher.find_matching(
+            user_id,
+            event,
+            bot_id="bot_b",
             event_type="im.message.receive_v1",
         )
 
         self.assertEqual([workflow_id], [hit[0] for hit in hits])
+        self.assertEqual([], misses)
 
     def test_bitable_update_action_calls_lark_client(self):
         conn = db.get_conn()
