@@ -88,6 +88,14 @@ const selectedNode = computed(() => {
   };
 });
 
+const inspectorGraphNodes = computed(() =>
+  flowNodes.value.map((n) => ({
+    id: n.id,
+    nodeType: (n.data as any)?.nodeType ?? "",
+    config: ((n.data as any)?.config ?? {}) as Record<string, any>,
+  }))
+);
+
 function localizeBitableEvent(value: any): string {
   const key = String(value ?? "").trim().toLowerCase();
   const map: Record<string, string> = {
@@ -533,6 +541,8 @@ const savedLabel = computed(() => {
       :node="selectedNode"
       :open="inspectorOpen && !runsOpen"
       :bots="bots"
+      :bot-id="store.current?.bot_id"
+      :graph-nodes="inspectorGraphNodes"
       @update="updateNodeConfig"
       @remove="(id) => { removeNode(id); inspectorOpen = false; }"
       @close="inspectorOpen = false; selectedNodeId = null;"

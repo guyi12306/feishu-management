@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .api import auth as auth_api
+from .api import bitables as bitables_api
 from .api import chat as chat_api
 from .api import settings as settings_api
 from .api import webhook as webhook_api
@@ -41,6 +42,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(auth_api.router)
+    app.include_router(bitables_api.router)
     app.include_router(chat_api.router)
     app.include_router(workflows_api.router)
     app.include_router(settings_api.router)

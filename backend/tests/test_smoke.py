@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app.agent.llm import LlmClient, LlmError  # noqa: E402
 from app import db  # noqa: E402
+from app.api import bitables as bitables_api  # noqa: E402
 from app.engine import executor  # noqa: E402
 from app.engine import dispatcher  # noqa: E402
 from app.main import app  # noqa: E402
@@ -40,6 +41,33 @@ class SmokeTest(unittest.TestCase):
             payload = response.json()
             self.assertEqual(payload["messages"][-1]["role"], "assistant")
             self.assertIn("LLM 调用失败", payload["messages"][-1]["content"])
+
+    def test_bitable_resource_endpoints(self):
+        class FakeLarkClient:
+            async def list_bitables(self):
+                return [{"app_token": "app123", "name": "线索表"}]
+
+            async def list_tables(self, app_token):
+                return [{"table_id": "tbl123", "name": "客户"}]
+
+            async def get_table_fields(self, app_token, table_id):
+                return [{"field_id": "fld123", "name": "状态", "ui_type": "Text"}]
+
+        with TestClient(app) as client:
+            client.post("/api/login", json={"username": "admin", "password": "admin123"})
+            with patch.object(bitables_api.LarkClient, "for_user", return_value=FakeLarkClient()):
+                self.assertEqual(
+                    client.get("/api/bitables").json()[0]["app_token"],
+                    "app123",
+                )
+                self.assertEqual(
+                    client.get("/api/bitables/app123/tables").json()[0]["table_id"],
+                    "tbl123",
+                )
+                self.assertEqual(
+                    client.get("/api/bitables/app123/tables/tbl123/fields").json()[0]["name"],
+                    "状态",
+                )
 
     def test_bot_mention_dispatch_matches_applied_workflow(self):
         conn = db.get_conn()
