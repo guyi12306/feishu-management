@@ -4,6 +4,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import unicodedata
+from typing import Any
 
 from ..db import get_conn, parse_json
 from ..workflow_events import canonical_event
@@ -38,30 +40,70 @@ def _action_types(event: dict) -> set[str]:
     return types
 
 
+def _flatten_text(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return []
+        if text[0] in "[{":
+            try:
+                parsed = json.loads(text)
+            except json.JSONDecodeError:
+                return [text]
+            return _flatten_text(parsed)
+        return [text]
+    if isinstance(value, dict):
+        parts: list[str] = []
+        for key in ("text", "content", "title"):
+            if key in value:
+                parts.extend(_flatten_text(value.get(key)))
+        if value.get("tag") == "at":
+            parts.extend(_flatten_text(value.get("user_name") or value.get("name")))
+        if parts:
+            return parts
+        for item in value.values():
+            parts.extend(_flatten_text(item))
+        return parts
+    if isinstance(value, list):
+        parts: list[str] = []
+        for item in value:
+            parts.extend(_flatten_text(item))
+        return parts
+    return [str(value)]
+
+
 def _message_text(event: dict) -> str:
     message = event.get("message") or {}
-    content = message.get("content") or ""
-    if isinstance(content, str):
-        try:
-            parsed = json.loads(content)
-        except json.JSONDecodeError:
-            return content
-        if isinstance(parsed, dict):
-            return str(parsed.get("text") or parsed.get("content") or "")
-        return content
-    if isinstance(content, dict):
-        return str(content.get("text") or content.get("content") or "")
-    return ""
+    parts = _flatten_text(message.get("content"))
+    if not parts:
+        parts = _flatten_text(message.get("text"))
+    return " ".join(part for part in parts if part).strip()
+
+
+def _normalize_text(value: str) -> str:
+    text = unicodedata.normalize("NFKC", value or "")
+    text = text.replace("\u200b", "").replace("\ufeff", "")
+    return " ".join(text.casefold().split())
+
+
+def _keyword_matches(text: str, keyword: str) -> bool:
+    keyword = (keyword or "").strip()
+    if not keyword:
+        return True
+    return _normalize_text(keyword) in _normalize_text(text)
 
 
 def _chat_type_matches(expected: str, actual: str) -> bool:
     expected = (expected or "全部").strip()
     actual = (actual or "").strip().lower()
-    if expected in ("", "全部"):
+    expected_lower = expected.lower()
+    if expected in ("", "全部") or expected_lower in {"all", "any"}:
         return True
-    if expected == "群聊":
+    if expected == "群聊" or expected_lower in {"group", "group_chat"}:
         return actual in {"group", "chat", "group_chat"}
-    if expected == "私聊":
+    if expected == "私聊" or expected_lower in {"p2p", "private", "private_chat"}:
         return actual in {"p2p", "private", "private_chat"}
     return True
 
@@ -113,11 +155,16 @@ def _find_bot_mention_matching(rows, event: dict, bot_id: str | None) -> list[tu
             if node.get("type") != "trigger.bot_mention":
                 continue
             config = node.get("config") or {}
-            trigger_bot_id = str(config.get("bot_id") or "").strip() or row["bot_id"]
+            configured_bot_id = str(config.get("bot_id") or "").strip()
+            trigger_bot_id = (
+                row["bot_id"]
+                if configured_bot_id in {"", "default"} and row["bot_id"]
+                else configured_bot_id or row["bot_id"]
+            )
             if not _workflow_matches_bot(trigger_bot_id, bot_id):
                 continue
             keyword = str(config.get("keyword") or "").strip()
-            if keyword and keyword not in text:
+            if not _keyword_matches(text, keyword):
                 continue
             if not _chat_type_matches(str(config.get("chat_type") or "全部"), chat_type):
                 continue

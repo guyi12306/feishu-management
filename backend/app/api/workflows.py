@@ -453,10 +453,15 @@ def apply_workflow(wid: int, user: dict = CurrentUser):
             for n in triggers
             if n.get("type") == "trigger.bot_mention"
             and str((n.get("config") or {}).get("bot_id") or "").strip()
+            not in {"", feishu_bots.DEFAULT_BOT_ID}
         ),
         None,
     )
-    effective_bot_id = bot_mention_bot_id or row["bot_id"]
+    effective_bot_id = (
+        bot_mention_bot_id
+        or row["bot_id"]
+        or (feishu_bots.DEFAULT_BOT_ID if has_bot_mention else None)
+    )
     if effective_bot_id and not feishu_bots.bot_exists(user["id"], effective_bot_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="工作流选择的机器人不存在")
 
@@ -474,8 +479,8 @@ def apply_workflow(wid: int, user: dict = CurrentUser):
 
     if has_bitable or has_bot_mention:
         # 提前校验 verification_token 是否配过,给个友好提示但不阻止
-        from .. import secrets_store
-        if not secrets_store.get(user["id"], "feishu", "verification_token"):
+        credentials = feishu_bots.get_credentials(user["id"], effective_bot_id)
+        if not credentials.get("verification_token"):
             applied_target["warning"] = (
                 "已应用,但 Verification Token 未配置,飞书事件触发器无法工作 → 去『设置』填一下"
             )

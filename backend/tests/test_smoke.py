@@ -165,6 +165,113 @@ class SmokeTest(unittest.TestCase):
         self.assertEqual([workflow_id], [hit[0] for hit in hits])
         self.assertEqual([], misses)
 
+    def test_bot_mention_dispatch_uses_workflow_bot_for_default_node(self):
+        conn = db.get_conn()
+        cur = conn.execute(
+            "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+            ("mention_default_node_user", "x"),
+        )
+        user_id = cur.lastrowid
+        graph = {
+            "nodes": [
+                {
+                    "id": "t1",
+                    "type": "trigger.bot_mention",
+                    "position": {"x": 80, "y": 120},
+                    "config": {
+                        "bot_id": "default",
+                        "chat_type": "\u5168\u90e8",
+                        "keyword": "report",
+                    },
+                }
+            ],
+            "edges": [],
+            "viewport": {"x": 0, "y": 0, "zoom": 1},
+        }
+        cur = conn.execute(
+            "INSERT INTO workflow_drafts (user_id, name, graph, status, bot_id) "
+            "VALUES (?, ?, ?, 'applied', ?)",
+            (user_id, "mention default node flow", db.dump_json(graph), "bot_a"),
+        )
+        workflow_id = cur.lastrowid
+        event = {
+            "message": {
+                "chat_type": "group",
+                "content": db.dump_json({"text": "@bot report"}),
+            }
+        }
+
+        hits = dispatcher.find_matching(
+            user_id,
+            event,
+            bot_id="bot_a",
+            event_type="im.message.receive_v1",
+        )
+        misses = dispatcher.find_matching(
+            user_id,
+            event,
+            bot_id="bot_b",
+            event_type="im.message.receive_v1",
+        )
+
+        self.assertEqual([workflow_id], [hit[0] for hit in hits])
+        self.assertEqual([], misses)
+
+    def test_bot_mention_dispatch_reads_rich_message_content(self):
+        conn = db.get_conn()
+        cur = conn.execute(
+            "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+            ("mention_rich_content_user", "x"),
+        )
+        user_id = cur.lastrowid
+        graph = {
+            "nodes": [
+                {
+                    "id": "t1",
+                    "type": "trigger.bot_mention",
+                    "position": {"x": 80, "y": 120},
+                    "config": {
+                        "bot_id": "bot_a",
+                        "chat_type": "\u5168\u90e8",
+                        "keyword": "report",
+                    },
+                }
+            ],
+            "edges": [],
+            "viewport": {"x": 0, "y": 0, "zoom": 1},
+        }
+        cur = conn.execute(
+            "INSERT INTO workflow_drafts (user_id, name, graph, status) "
+            "VALUES (?, ?, ?, 'applied')",
+            (user_id, "mention rich content flow", db.dump_json(graph)),
+        )
+        workflow_id = cur.lastrowid
+        event = {
+            "message": {
+                "chat_type": "group",
+                "content": db.dump_json(
+                    {
+                        "title": "",
+                        "content": [
+                            [
+                                {"tag": "at", "user_name": "Bot"},
+                                {"tag": "text", "text": " report"},
+                            ]
+                        ],
+                    }
+                ),
+            }
+        }
+
+        hits = dispatcher.find_matching(
+            user_id,
+            event,
+            bot_id="bot_a",
+            event_type="im.message.receive_v1",
+        )
+
+        self.assertEqual([workflow_id], [hit[0] for hit in hits])
+
     def test_bitable_update_action_calls_lark_client(self):
         conn = db.get_conn()
         cur = conn.execute(
