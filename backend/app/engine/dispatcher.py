@@ -1,21 +1,9 @@
-"""飞书事件 → 触发匹配的工作流。
-
-匹配规则:
-- 工作流 status = applied
-- 节点 type = trigger.bitable_change
-- node.config:
-    app_token    必须等于事件里的 file_token / app_token
-    table_id     必须等于事件里的 table_id
-    event        ∈ {新增, 更新, 删除};旧数据里的 create/update/delete 也兼容。
-                 与事件 action_list 里出现的 action 取交集,有交集就匹配
-
-一个事件可能命中多个工作流 → 全部异步并发触发。
-"""
+"""Dispatch Feishu/Lark events to matching applied workflows."""
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
-from typing import Any
 
 from ..db import get_conn, parse_json
 from ..workflow_events import canonical_event
@@ -25,26 +13,116 @@ from .executor import run_workflow
 log = logging.getLogger(__name__)
 
 
+BITABLE_CHANGE_EVENTS = {
+    "drive.file.bitable_record_changed_v1",
+    "drive.file.bitable.record_changed_v1",
+}
+MESSAGE_RECEIVE_EVENTS = {"im.message.receive_v1"}
+
+
 def _action_types(event: dict) -> set[str]:
-    """飞书 action_list 里每条 action 的类型可能是 create / update / delete,
-    或者更细分(action_type 字段)。先粗匹配。"""
     actions = event.get("action_list") or []
     types: set[str] = set()
-    for a in actions:
-        t = a.get("action_type") or a.get("op") or ""
-        if not t:
+    for action in actions:
+        action_type = (action.get("action_type") or action.get("op") or "").lower()
+        if not action_type:
             continue
-        t = t.lower()
-        if "create" in t or "add" in t or "insert" in t:
+        if "create" in action_type or "add" in action_type or "insert" in action_type:
             types.add("create")
-        elif "update" in t or "edit" in t or "modify" in t:
+        elif "update" in action_type or "edit" in action_type or "modify" in action_type:
             types.add("update")
-        elif "delete" in t or "remove" in t:
+        elif "delete" in action_type or "remove" in action_type:
             types.add("delete")
-    # 没明确指标时,按 event_type 兜底
     if not types:
         types.add("update")
     return types
+
+
+def _message_text(event: dict) -> str:
+    message = event.get("message") or {}
+    content = message.get("content") or ""
+    if isinstance(content, str):
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError:
+            return content
+        if isinstance(parsed, dict):
+            return str(parsed.get("text") or parsed.get("content") or "")
+        return content
+    if isinstance(content, dict):
+        return str(content.get("text") or content.get("content") or "")
+    return ""
+
+
+def _chat_type_matches(expected: str, actual: str) -> bool:
+    expected = (expected or "全部").strip()
+    actual = (actual or "").strip().lower()
+    if expected in ("", "全部"):
+        return True
+    if expected == "群聊":
+        return actual in {"group", "chat", "group_chat"}
+    if expected == "私聊":
+        return actual in {"p2p", "private", "private_chat"}
+    return True
+
+
+def _workflow_matches_bot(row_bot_id: str | None, bot_id: str | None) -> bool:
+    if bot_id and row_bot_id and row_bot_id != bot_id:
+        return False
+    if bot_id and not row_bot_id and bot_id != "default":
+        return False
+    return True
+
+
+def _find_bitable_matching(rows, event: dict, bot_id: str | None) -> list[tuple[int, dict]]:
+    file_token = event.get("file_token") or event.get("app_token") or ""
+    table_id = event.get("table_id") or ""
+    if not file_token or not table_id:
+        return []
+    seen_actions = _action_types(event)
+
+    hits: list[tuple[int, dict]] = []
+    for row in rows:
+        if not _workflow_matches_bot(row["bot_id"], bot_id):
+            continue
+        graph = parse_json(row["graph"]) or {}
+        for node in graph.get("nodes", []):
+            if node.get("type") != "trigger.bitable_change":
+                continue
+            config = node.get("config") or {}
+            if config.get("app_token") != file_token:
+                continue
+            if config.get("table_id") != table_id:
+                continue
+            if canonical_event(config.get("event")) not in seen_actions:
+                continue
+            hits.append((row["id"], graph))
+            break
+    return hits
+
+
+def _find_bot_mention_matching(rows, event: dict, bot_id: str | None) -> list[tuple[int, dict]]:
+    message = event.get("message") or {}
+    text = _message_text(event)
+    chat_type = str(message.get("chat_type") or "")
+
+    hits: list[tuple[int, dict]] = []
+    for row in rows:
+        if not _workflow_matches_bot(row["bot_id"], bot_id):
+            continue
+        graph = parse_json(row["graph"]) or {}
+        for node in graph.get("nodes", []):
+            if node.get("type") != "trigger.bot_mention":
+                continue
+            config = node.get("config") or {}
+            keyword = str(config.get("keyword") or "").strip()
+            if keyword and keyword not in text:
+                continue
+            if not _chat_type_matches(str(config.get("chat_type") or "全部"), chat_type):
+                continue
+            hits.append((row["id"], graph))
+            break
+    return hits
 
 
 def find_matching(
@@ -52,14 +130,8 @@ def find_matching(
     event: dict,
     *,
     bot_id: str | None = None,
+    event_type: str | None = None,
 ) -> list[tuple[int, dict]]:
-    """返回 [(workflow_id, graph), ...]。"""
-    file_token = event.get("file_token") or event.get("app_token") or ""
-    table_id = event.get("table_id") or ""
-    if not file_token or not table_id:
-        return []
-    seen_actions = _action_types(event)
-
     conn = get_conn()
     rows = conn.execute(
         "SELECT id, graph, bot_id FROM workflow_drafts "
@@ -67,57 +139,51 @@ def find_matching(
         (user_id,),
     ).fetchall()
 
-    hits: list[tuple[int, dict]] = []
-    for r in rows:
-        wf_bot_id = r["bot_id"]
-        if bot_id and wf_bot_id and wf_bot_id != bot_id:
-            continue
-        if bot_id and not wf_bot_id and bot_id != "default":
-            continue
-        graph = parse_json(r["graph"]) or {}
-        for n in graph.get("nodes", []):
-            if n.get("type") != "trigger.bitable_change":
-                continue
-            cfg = n.get("config") or {}
-            if cfg.get("app_token") != file_token:
-                continue
-            if cfg.get("table_id") != table_id:
-                continue
-            ev = canonical_event(cfg.get("event"))
-            if ev not in seen_actions:
-                continue
-            hits.append((r["id"], graph))
-            break
-    return hits
+    if event_type in MESSAGE_RECEIVE_EVENTS:
+        return _find_bot_mention_matching(rows, event, bot_id)
+    return _find_bitable_matching(rows, event, bot_id)
 
 
-async def dispatch(user_id: int, event: dict, *, bot_id: str | None = None) -> list[dict]:
-    """命中即并发触发;返回每个 run 的简要状态。"""
-    hits = find_matching(user_id, event, bot_id=bot_id)
+async def dispatch(
+    user_id: int,
+    event: dict,
+    *,
+    bot_id: str | None = None,
+    event_type: str | None = None,
+) -> list[dict]:
+    hits = find_matching(user_id, event, bot_id=bot_id, event_type=event_type)
     if not hits:
         return []
+
+    trigger = "bot_mention" if event_type in MESSAGE_RECEIVE_EVENTS else "bitable_change"
     coros = [
         run_workflow(
             user_id=user_id,
-            workflow_id=wid,
-            trigger="bitable_change",
+            workflow_id=workflow_id,
+            trigger=trigger,
             trigger_payload=event,
         )
-        for wid, _g in hits
+        for workflow_id, _graph in hits
     ]
     results = await asyncio.gather(*coros, return_exceptions=True)
 
     out: list[dict] = []
-    for (wid, _g), res in zip(hits, results):
-        if isinstance(res, Exception):
-            log.exception("dispatch failed for workflow %s", wid)
-            out.append({"workflow_id": wid, "status": "failed", "error": str(res)})
+    for (workflow_id, _graph), result in zip(hits, results):
+        if isinstance(result, Exception):
+            log.exception("dispatch failed for workflow %s", workflow_id)
+            out.append(
+                {
+                    "workflow_id": workflow_id,
+                    "status": "failed",
+                    "error": str(result),
+                }
+            )
         else:
             out.append(
                 {
-                    "workflow_id": wid,
-                    "status": res.status,
-                    "duration_ms": res.duration_ms,
+                    "workflow_id": workflow_id,
+                    "status": result.status,
+                    "duration_ms": result.duration_ms,
                 }
             )
     return out

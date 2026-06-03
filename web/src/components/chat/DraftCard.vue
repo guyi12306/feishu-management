@@ -11,6 +11,7 @@ import {
   Database,
   Globe,
   GitBranch,
+  AtSign,
 } from "lucide-vue-next";
 
 import { workflowsApi, type WorkflowDetail, type WorkflowNode } from "@/api/workflows";
@@ -39,6 +40,7 @@ onMounted(async () => {
 
 function iconFor(type: string) {
   if (type.startsWith("trigger.schedule")) return CalendarClock;
+  if (type.startsWith("trigger.bot_mention")) return AtSign;
   if (type.startsWith("trigger.bitable")) return Database;
   if (type.startsWith("action.send_message")) return Send;
   if (type.startsWith("action.bitable")) return Database;
@@ -51,6 +53,7 @@ function labelFor(type: string) {
   const map: Record<string, string> = {
     "trigger.schedule": "定时触发",
     "trigger.bitable_change": "表格变更",
+    "trigger.bot_mention": "@机器人触发",
     "action.bitable_query": "查询表格",
     "action.send_message": "发送消息",
     "action.http": "HTTP 请求",
@@ -62,6 +65,7 @@ function labelFor(type: string) {
 function previewConfig(node: WorkflowNode) {
   const c = node.config ?? {};
   if (node.type === "trigger.schedule") return c.cron ?? "—";
+  if (node.type === "trigger.bot_mention") return c.keyword ? `关键词: ${c.keyword}` : (c.chat_type ?? "全部");
   if (node.type === "action.send_message") return c.chat_id ?? "—";
   if (node.type === "action.bitable_query") return c.table_id ?? "—";
   if (node.type === "action.http") return `${c.method ?? "GET"} ${c.url ?? "—"}`;

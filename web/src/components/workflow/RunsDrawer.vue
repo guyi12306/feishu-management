@@ -102,6 +102,7 @@ function triggerLabel(trigger: string) {
   if (trigger === "manual") return "手动";
   if (trigger === "schedule") return "定时";
   if (trigger === "bitable_change") return "表格变更";
+  if (trigger === "bot_mention") return "@机器人";
   return trigger;
 }
 </script>

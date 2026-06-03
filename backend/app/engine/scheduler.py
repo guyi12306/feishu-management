@@ -152,7 +152,10 @@ async def restore_all() -> None:
     for r in rows:
         graph = parse_json(r["graph"]) or {}
         if not _has_trigger(graph, "trigger.schedule"):
-            if _has_trigger(graph, "trigger.bitable_change"):
+            if (
+                _has_trigger(graph, "trigger.bitable_change")
+                or _has_trigger(graph, "trigger.bot_mention")
+            ):
                 continue
             log.warning("restore workflow %s skipped: 工作流缺少 trigger 节点", r["id"])
             continue

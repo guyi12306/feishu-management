@@ -248,6 +248,7 @@ function onDragOver(e: DragEvent) {
 function defaultConfig(type: string): Record<string, any> {
   if (type === "trigger.schedule") return { cron: "0 9 * * *", tz: "Asia/Shanghai" };
   if (type === "trigger.bitable_change") return { event: "新增" };
+  if (type === "trigger.bot_mention") return { chat_type: "全部" };
   if (type === "action.http") return { method: "GET" };
   return {};
 }

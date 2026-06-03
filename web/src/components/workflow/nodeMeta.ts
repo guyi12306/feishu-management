@@ -5,6 +5,7 @@ import {
   Globe,
   GitBranch,
   Workflow,
+  AtSign,
 } from "lucide-vue-next";
 
 export type NodeCategory = "trigger" | "action" | "condition";
@@ -20,6 +21,7 @@ export interface NodeMeta {
 const ICON: Record<string, any> = {
   "trigger.schedule":       CalendarClock,
   "trigger.bitable_change": Database,
+  "trigger.bot_mention":    AtSign,
   "action.bitable_query":   Database,
   "action.send_message":    Send,
   "action.http":            Globe,
@@ -29,6 +31,7 @@ const ICON: Record<string, any> = {
 const LABEL: Record<string, string> = {
   "trigger.schedule":       "定时触发",
   "trigger.bitable_change": "表格变更",
+  "trigger.bot_mention":    "@机器人触发",
   "action.bitable_query":   "查询表格",
   "action.send_message":    "发送消息",
   "action.http":            "HTTP 请求",

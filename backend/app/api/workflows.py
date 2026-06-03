@@ -220,6 +220,24 @@ def node_types():
                 },
             },
             {
+                "type": "trigger.bot_mention",
+                "category": "trigger",
+                "label": "@机器人触发",
+                "schema": {
+                    "chat_type": {
+                        "type": "enum",
+                        "label": "会话类型",
+                        "options": ["全部", "群聊", "私聊"],
+                        "default": "全部",
+                    },
+                    "keyword": {
+                        "type": "string",
+                        "label": "关键词",
+                        "description": "可选，消息文本包含该关键词才触发",
+                    },
+                },
+            },
+            {
                 "type": "action.bitable_query",
                 "category": "action",
                 "label": "查询表格",
@@ -381,6 +399,7 @@ def apply_workflow(wid: int, user: dict = CurrentUser):
 
     has_schedule = any(n.get("type") == "trigger.schedule" for n in triggers)
     has_bitable = any(n.get("type") == "trigger.bitable_change" for n in triggers)
+    has_bot_mention = any(n.get("type") == "trigger.bot_mention" for n in triggers)
 
     applied_target: dict = {"engine": "internal"}
     info: dict = {}
@@ -394,14 +413,19 @@ def apply_workflow(wid: int, user: dict = CurrentUser):
             raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e))
         applied_target.update(info)
 
-    if has_bitable:
+    if has_bitable or has_bot_mention:
         # 提前校验 verification_token 是否配过,给个友好提示但不阻止
         from .. import secrets_store
         if not secrets_store.get(user["id"], "feishu", "verification_token"):
             applied_target["warning"] = (
                 "已应用,但 Verification Token 未配置,飞书事件触发器无法工作 → 去『设置』填一下"
             )
+
+    if has_bitable:
         applied_target["bitable_change"] = True
+
+    if has_bot_mention:
+        applied_target["bot_mention"] = True
 
     conn.execute(
         "UPDATE workflow_drafts SET status = 'applied', "

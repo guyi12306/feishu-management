@@ -44,7 +44,7 @@ class RunResult:
     duration_ms: int = 0
 
 
-AUTOMATIC_TRIGGERS = {"schedule", "bitable_change"}
+AUTOMATIC_TRIGGERS = {"schedule", "bitable_change", "bot_mention"}
 
 
 _TEMPLATE_RE = re.compile(r"\{\{\s*([\w.\-\[\]]+)\s*\}\}")
@@ -117,6 +117,35 @@ def _parse_filter(value: Any) -> dict | None:
     raise ExecError("查询表格节点 filter 需要是 JSON 对象")
 
 
+def _parse_message_content(raw: Any) -> dict:
+    if isinstance(raw, dict):
+        return raw
+    if not isinstance(raw, str) or raw == "":
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return {"text": raw}
+    return parsed if isinstance(parsed, dict) else {"text": raw}
+
+
+def _message_trigger_output(payload: dict) -> dict:
+    message = payload.get("message") or {}
+    content = _parse_message_content(message.get("content"))
+    return {
+        "message_id": message.get("message_id"),
+        "root_id": message.get("root_id"),
+        "parent_id": message.get("parent_id"),
+        "chat_id": message.get("chat_id"),
+        "chat_type": message.get("chat_type"),
+        "message_type": message.get("message_type"),
+        "text": content.get("text") or content.get("content") or "",
+        "content": content,
+        "mentions": message.get("mentions") or [],
+        "sender": payload.get("sender") or {},
+    }
+
+
 def _topo_order(nodes: list[dict], edges: list[dict]) -> list[str]:
     """简单 Kahn 拓扑。"""
     incoming: dict[str, set[str]] = {n["id"]: set() for n in nodes}
@@ -181,6 +210,10 @@ async def _exec_node(
             "first_action": first,
             "first_record": first.get("record") or first.get("after_value"),
         }
+
+    if ntype == "trigger.bot_mention":
+        payload = ctx.get("trigger", {}).get("payload") or {}
+        return _message_trigger_output(payload)
 
     if ntype == "action.bitable_query":
         app_token = cfg.get("app_token")

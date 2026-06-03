@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app.agent.llm import LlmClient, LlmError  # noqa: E402
 from app import db  # noqa: E402
+from app.engine import dispatcher  # noqa: E402
 from app.main import app  # noqa: E402
 
 
@@ -37,6 +38,46 @@ class SmokeTest(unittest.TestCase):
             payload = response.json()
             self.assertEqual(payload["messages"][-1]["role"], "assistant")
             self.assertIn("LLM 调用失败", payload["messages"][-1]["content"])
+
+    def test_bot_mention_dispatch_matches_applied_workflow(self):
+        conn = db.get_conn()
+        cur = conn.execute(
+            "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+            ("mention_user", "x"),
+        )
+        user_id = cur.lastrowid
+        graph = {
+            "nodes": [
+                {
+                    "id": "t1",
+                    "type": "trigger.bot_mention",
+                    "position": {"x": 80, "y": 120},
+                    "config": {"chat_type": "群聊", "keyword": "日报"},
+                }
+            ],
+            "edges": [],
+            "viewport": {"x": 0, "y": 0, "zoom": 1},
+        }
+        cur = conn.execute(
+            "INSERT INTO workflow_drafts (user_id, name, graph, status) "
+            "VALUES (?, ?, ?, 'applied')",
+            (user_id, "mention flow", db.dump_json(graph)),
+        )
+        workflow_id = cur.lastrowid
+        event = {
+            "message": {
+                "chat_type": "group",
+                "content": db.dump_json({"text": "@机器人 生成日报"}),
+            }
+        }
+
+        hits = dispatcher.find_matching(
+            user_id,
+            event,
+            event_type="im.message.receive_v1",
+        )
+
+        self.assertEqual([workflow_id], [hit[0] for hit in hits])
 
 def tearDownModule():
     if db._pool is not None:
