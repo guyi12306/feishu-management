@@ -15,6 +15,15 @@ openssl rand -hex 32
 
 Put the generated value into `SESSION_SECRET`, then set the admin password and any LLM or Feishu values.
 
+`FEISHU_EVENT_MODE=websocket` uses the official Feishu/Lark SDK long connection
+for message events, so the app does not need a public webhook URL for `@ bot`
+triggers. Bitable change events can still use the old webhook endpoint:
+
+- `websocket`: message events use the SDK long connection; message webhooks are skipped.
+- `webhook`: public callback URL only; useful when you do not want SDK connections.
+- `both`: enable both receivers. Avoid this unless you intentionally want both,
+  because the same event can be received twice if both are configured in Feishu.
+
 Start the app:
 
 ```bash

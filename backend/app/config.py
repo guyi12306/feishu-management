@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     feishu_app_id: str = ""
     feishu_app_secret: str = ""
     feishu_api_base: str = "https://open.feishu.cn/open-apis"
+    feishu_event_mode: str = "websocket"
 
     @property
     def database_file(self) -> Path:

@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -13,6 +14,7 @@ from .api import workflows as workflows_api
 from .auth import bootstrap_default_admin
 from .config import get_settings
 from .db import get_conn
+from .engine import lark_ws as lark_ws_engine
 from .engine import scheduler as engine_scheduler
 
 
@@ -22,9 +24,11 @@ async def lifespan(app: FastAPI):
     bootstrap_default_admin()
     engine_scheduler.start()
     await engine_scheduler.restore_all()
+    lark_ws_engine.manager.start(asyncio.get_running_loop())
     try:
         yield
     finally:
+        lark_ws_engine.manager.shutdown()
         engine_scheduler.shutdown()
 
 

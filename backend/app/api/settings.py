@@ -208,3 +208,10 @@ async def test_feishu(user: dict = CurrentUser) -> dict:
         return {"ok": True, "token_prefix": token[:8] + "..."}
     except Exception as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=f"飞书测试失败:{e}")
+
+
+@router.get("/feishu/event-receiver")
+def get_feishu_event_receiver(user: dict = CurrentUser) -> dict:
+    from ..engine import lark_ws
+
+    return lark_ws.manager.status()

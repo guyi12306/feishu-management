@@ -146,6 +146,38 @@ def get_credentials(user_id: int, bot_id: str | None = None) -> dict[str, str]:
     }
 
 
+def list_connection_bots() -> list[dict[str, str | int]]:
+    conn = get_conn()
+    users = conn.execute("SELECT id FROM users").fetchall()
+    for user in users:
+        ensure_default_bot(user["id"])
+
+    rows = conn.execute(
+        "SELECT user_id, id, name, app_id, app_secret_enc FROM feishu_bots "
+        "WHERE app_id <> ''"
+    ).fetchall()
+    bots: list[dict[str, str | int]] = []
+    seen: set[tuple[int, str]] = set()
+    for row in rows:
+        secret = _decrypt(row["app_secret_enc"])
+        if not secret:
+            continue
+        key = (row["user_id"], row["id"])
+        if key in seen:
+            continue
+        seen.add(key)
+        bots.append(
+            {
+                "user_id": row["user_id"],
+                "bot_id": row["id"],
+                "name": row["name"],
+                "app_id": row["app_id"],
+                "app_secret": secret,
+            }
+        )
+    return bots
+
+
 def upsert_bot(
     *,
     user_id: int,

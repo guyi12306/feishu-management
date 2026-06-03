@@ -130,6 +130,10 @@ async def lark_event(request: Request) -> dict[str, Any]:
     if event_type not in supported_events:
         log.info("skip unsupported event_type: %s", event_type)
         return {"ok": True, "skipped": True}
+    event_mode = (get_settings().feishu_event_mode or "websocket").strip().lower()
+    if event_type in dispatcher.MESSAGE_RECEIVE_EVENTS and event_mode in {"websocket", "sdk"}:
+        log.info("skip message webhook because Feishu websocket receiver is enabled")
+        return {"ok": True, "skipped": True, "receiver": "websocket"}
 
     event = payload.get("event") or {}
     runs = await dispatcher.dispatch(
