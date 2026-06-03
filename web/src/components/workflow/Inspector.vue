@@ -151,6 +151,50 @@ function setVal(key: string, val: any) {
   emit("update", props.node.id, { ...props.node.config, [key]: val });
 }
 
+function parseBitableInput(value: string): { appToken: string; tableId?: string } {
+  const text = value.trim();
+  if (!text) return { appToken: "" };
+
+  let appToken = text;
+  let tableId = "";
+  try {
+    const url = new URL(text);
+    const parts = url.pathname.split("/").filter(Boolean);
+    const baseIndex = parts.findIndex((part) => part === "base" || part === "bitable");
+    if (baseIndex >= 0 && parts[baseIndex + 1]) {
+      appToken = parts[baseIndex + 1];
+    }
+    tableId =
+      url.searchParams.get("table") ??
+      url.searchParams.get("table_id") ??
+      url.searchParams.get("tableId") ??
+      "";
+  } catch {
+    const appMatch = text.match(/\/(?:base|bitable)\/([^/?#]+)/);
+    const tableMatch = text.match(/[?&](?:table|table_id|tableId)=([^&#]+)/);
+    if (appMatch?.[1]) appToken = appMatch[1];
+    if (tableMatch?.[1]) tableId = decodeURIComponent(tableMatch[1]);
+  }
+
+  return { appToken: appToken.trim(), tableId: tableId.trim() || undefined };
+}
+
+function setBitableFromInput(value: string) {
+  if (!props.node) return;
+  const parsed = parseBitableInput(value);
+  const currentAppToken = String(props.node.config.app_token ?? "");
+  const nextConfig: Record<string, any> = {
+    ...props.node.config,
+    app_token: parsed.appToken,
+  };
+  if (parsed.tableId) {
+    nextConfig.table_id = parsed.tableId;
+  } else if (parsed.appToken !== currentAppToken) {
+    nextConfig.table_id = "";
+  }
+  emit("update", props.node.id, nextConfig);
+}
+
 function setBitableToken(val: string) {
   if (!props.node) return;
   emit("update", props.node.id, {
@@ -244,22 +288,30 @@ function setBitableToken(val: string) {
                 @input="(e) => setVal(key, (e.target as HTMLTextAreaElement).value)"
               />
 
-              <select
-                v-else-if="field.type === 'bitable'"
-                class="input"
-                :disabled="loadingBitables"
-                :value="props.node.config[key] ?? ''"
-                @change="(e) => setBitableToken((e.target as HTMLSelectElement).value)"
-              >
-                <option value="">{{ loadingBitables ? "加载中..." : "请选择多维表格" }}</option>
-                <option
-                  v-for="bitable in bitables"
-                  :key="bitable.app_token"
-                  :value="bitable.app_token"
+              <div v-else-if="field.type === 'bitable'" class="space-y-2">
+                <input
+                  class="input"
+                  :value="props.node.config[key] ?? ''"
+                  placeholder="粘贴多维表格链接或 app_token"
+                  @change="(e) => setBitableFromInput((e.target as HTMLInputElement).value)"
+                  @blur="(e) => setBitableFromInput((e.target as HTMLInputElement).value)"
+                />
+                <select
+                  class="input"
+                  :disabled="loadingBitables"
+                  :value="props.node.config[key] ?? ''"
+                  @change="(e) => setBitableToken((e.target as HTMLSelectElement).value)"
                 >
-                  {{ bitable.name || bitable.app_token }}
-                </option>
-              </select>
+                  <option value="">{{ loadingBitables ? "加载中..." : "从列表选择多维表格" }}</option>
+                  <option
+                    v-for="bitable in bitables"
+                    :key="bitable.app_token"
+                    :value="bitable.app_token"
+                  >
+                    {{ bitable.name || bitable.app_token }}
+                  </option>
+                </select>
+              </div>
 
               <select
                 v-else-if="field.type === 'bitable_table'"

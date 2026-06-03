@@ -214,7 +214,12 @@ def node_types():
                 "category": "trigger",
                 "label": "表格变更",
                 "schema": {
-                    "app_token": {"type": "bitable", "label": "多维表格", "required": True},
+                    "app_token": {
+                        "type": "bitable",
+                        "label": "多维表格",
+                        "required": True,
+                        "description": "可下拉选择，也可粘贴多维表格链接",
+                    },
                     "table_id": {"type": "bitable_table", "label": "数据表", "required": True},
                     "event": {"type": "enum", "label": "事件",
                               "options": ["新增", "更新", "删除"], "default": "新增"},
@@ -250,7 +255,12 @@ def node_types():
                 "category": "action",
                 "label": "查询表格",
                 "schema": {
-                    "app_token": {"type": "bitable", "label": "多维表格", "required": True},
+                    "app_token": {
+                        "type": "bitable",
+                        "label": "多维表格",
+                        "required": True,
+                        "description": "可下拉选择，也可粘贴多维表格链接",
+                    },
                     "table_id": {"type": "bitable_table", "label": "数据表", "required": True},
                     "filter": {"type": "string", "label": "过滤表达式"},
                 },
@@ -260,7 +270,12 @@ def node_types():
                 "category": "action",
                 "label": "修改表格（多维表格）",
                 "schema": {
-                    "app_token": {"type": "bitable", "label": "多维表格", "required": True},
+                    "app_token": {
+                        "type": "bitable",
+                        "label": "多维表格",
+                        "required": True,
+                        "description": "可下拉选择，也可粘贴多维表格链接",
+                    },
                     "table_id": {"type": "bitable_table", "label": "数据表", "required": True},
                     "record_id": {
                         "type": "string",
