@@ -27,6 +27,7 @@ const preview = computed(() => {
     case "trigger.bitable_change": return `${c.table_id ?? "—"} · ${c.event ?? "—"}`;
     case "trigger.bot_mention":    return c.keyword ? `关键词: ${c.keyword}` : (c.chat_type ?? "全部");
     case "action.bitable_query":   return c.table_id ?? "—";
+    case "action.bitable_update":  return `${c.table_id ?? "—"} · ${c.record_id ?? "—"}`;
     case "action.send_message":    return c.chat_id ?? "—";
     case "action.http":            return `${(c.method ?? "GET").toUpperCase()} ${c.url ?? "—"}`;
     case "condition.if":           return c.expression ?? "—";

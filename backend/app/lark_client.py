@@ -140,6 +140,20 @@ class LarkClient:
         )
 
     # ────── IM ──────
+    async def update_record(
+        self,
+        app_token: str,
+        table_id: str,
+        record_id: str,
+        fields: dict,
+    ) -> dict:
+        return await self._request(
+            "PUT",
+            f"/bitable/v1/apps/{app_token}/tables/{table_id}/records/{record_id}",
+            params={"ignore_consistency_check": "true", "user_id_type": "open_id"},
+            json={"fields": fields},
+        )
+
     async def list_chats(self, page_size: int = 50) -> list[dict]:
         data = await self._request(
             "GET",

@@ -1,4 +1,5 @@
 import os
+import asyncio
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,6 +15,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app.agent.llm import LlmClient, LlmError  # noqa: E402
 from app import db  # noqa: E402
+from app.engine import executor  # noqa: E402
 from app.engine import dispatcher  # noqa: E402
 from app.main import app  # noqa: E402
 
@@ -78,6 +80,64 @@ class SmokeTest(unittest.TestCase):
         )
 
         self.assertEqual([workflow_id], [hit[0] for hit in hits])
+
+    def test_bitable_update_action_calls_lark_client(self):
+        conn = db.get_conn()
+        cur = conn.execute(
+            "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+            ("update_user", "x"),
+        )
+        user_id = cur.lastrowid
+        graph = {
+            "nodes": [
+                {
+                    "id": "t1",
+                    "type": "trigger.schedule",
+                    "position": {"x": 80, "y": 120},
+                    "config": {"cron": "0 9 * * *", "tz": "Asia/Shanghai"},
+                },
+                {
+                    "id": "a1",
+                    "type": "action.bitable_update",
+                    "position": {"x": 360, "y": 120},
+                    "config": {
+                        "app_token": "app123",
+                        "table_id": "tbl123",
+                        "record_id": "rec123",
+                        "fields": "{\"状态\":\"已处理\"}",
+                    },
+                },
+            ],
+            "edges": [{"id": "e1", "source": "t1", "target": "a1"}],
+            "viewport": {"x": 0, "y": 0, "zoom": 1},
+        }
+        cur = conn.execute(
+            "INSERT INTO workflow_drafts (user_id, name, graph, status) "
+            "VALUES (?, ?, ?, 'draft')",
+            (user_id, "update flow", db.dump_json(graph)),
+        )
+        workflow_id = cur.lastrowid
+        calls = []
+
+        class FakeLarkClient:
+            async def update_record(self, app_token, table_id, record_id, fields):
+                calls.append((app_token, table_id, record_id, fields))
+                return {"record": {"record_id": record_id, "fields": fields}}
+
+        with patch.object(executor.LarkClient, "for_user", return_value=FakeLarkClient()):
+            result = asyncio.run(
+                executor.run_workflow(
+                    user_id=user_id,
+                    workflow_id=workflow_id,
+                    trigger="manual",
+                )
+            )
+
+        self.assertEqual(result.status, "success")
+        self.assertEqual(
+            [("app123", "tbl123", "rec123", {"状态": "已处理"})],
+            calls,
+        )
 
 def tearDownModule():
     if db._pool is not None:

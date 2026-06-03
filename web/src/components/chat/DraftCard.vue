@@ -12,6 +12,7 @@ import {
   Globe,
   GitBranch,
   AtSign,
+  PencilLine,
 } from "lucide-vue-next";
 
 import { workflowsApi, type WorkflowDetail, type WorkflowNode } from "@/api/workflows";
@@ -42,6 +43,7 @@ function iconFor(type: string) {
   if (type.startsWith("trigger.schedule")) return CalendarClock;
   if (type.startsWith("trigger.bot_mention")) return AtSign;
   if (type.startsWith("trigger.bitable")) return Database;
+  if (type.startsWith("action.bitable_update")) return PencilLine;
   if (type.startsWith("action.send_message")) return Send;
   if (type.startsWith("action.bitable")) return Database;
   if (type.startsWith("action.http")) return Globe;
@@ -55,6 +57,7 @@ function labelFor(type: string) {
     "trigger.bitable_change": "表格变更",
     "trigger.bot_mention": "@机器人触发",
     "action.bitable_query": "查询表格",
+    "action.bitable_update": "修改表格（多维表格）",
     "action.send_message": "发送消息",
     "action.http": "HTTP 请求",
     "condition.if": "条件分支",
@@ -68,6 +71,7 @@ function previewConfig(node: WorkflowNode) {
   if (node.type === "trigger.bot_mention") return c.keyword ? `关键词: ${c.keyword}` : (c.chat_type ?? "全部");
   if (node.type === "action.send_message") return c.chat_id ?? "—";
   if (node.type === "action.bitable_query") return c.table_id ?? "—";
+  if (node.type === "action.bitable_update") return `${c.table_id ?? "—"} · ${c.record_id ?? "—"}`;
   if (node.type === "action.http") return `${c.method ?? "GET"} ${c.url ?? "—"}`;
   return "";
 }

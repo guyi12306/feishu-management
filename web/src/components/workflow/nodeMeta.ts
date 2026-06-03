@@ -6,6 +6,7 @@ import {
   GitBranch,
   Workflow,
   AtSign,
+  PencilLine,
 } from "lucide-vue-next";
 
 export type NodeCategory = "trigger" | "action" | "condition";
@@ -23,6 +24,7 @@ const ICON: Record<string, any> = {
   "trigger.bitable_change": Database,
   "trigger.bot_mention":    AtSign,
   "action.bitable_query":   Database,
+  "action.bitable_update":  PencilLine,
   "action.send_message":    Send,
   "action.http":            Globe,
   "condition.if":           GitBranch,
@@ -33,6 +35,7 @@ const LABEL: Record<string, string> = {
   "trigger.bitable_change": "表格变更",
   "trigger.bot_mention":    "@机器人触发",
   "action.bitable_query":   "查询表格",
+  "action.bitable_update":  "修改表格（多维表格）",
   "action.send_message":    "发送消息",
   "action.http":            "HTTP 请求",
   "condition.if":           "条件分支",

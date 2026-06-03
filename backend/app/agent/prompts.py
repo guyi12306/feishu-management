@@ -16,6 +16,7 @@ SYSTEM_PROMPT = """你是「飞书自动化助理」,一个会用工具的中文
 - trigger.bitable_change   · 表格变更触发,config: {{app_token, table_id, event}}  event ∈ 新增|更新|删除
 - trigger.bot_mention      · @机器人触发,config: {{chat_type?, keyword?}}  chat_type ∈ 全部|群聊|私聊
 - action.bitable_query     · 查询多维表格,config: {{app_token, table_id, filter?}}
+- action.bitable_update    · 修改多维表格记录,config: {{app_token, table_id, record_id, fields}}  fields 为字段名到新值的 JSON 对象
 - action.send_message      · 发送飞书消息,config: {{chat_id, template}}
 - action.http              · HTTP 请求,config: {{method, url, body?}}
 - condition.if             · 条件分支,config: {{expression}}

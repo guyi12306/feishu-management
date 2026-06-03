@@ -22,6 +22,7 @@ REQUIRED_CONFIG: dict[str, tuple[str, ...]] = {
     "trigger.schedule": ("cron", "tz"),
     "trigger.bitable_change": ("app_token", "table_id", "event"),
     "action.bitable_query": ("app_token", "table_id"),
+    "action.bitable_update": ("app_token", "table_id", "record_id", "fields"),
     "action.send_message": ("chat_id", "template"),
     "action.http": ("method", "url"),
     "condition.if": ("expression",),
@@ -245,6 +246,27 @@ def node_types():
                     "app_token": {"type": "string", "label": "多维表格", "required": True},
                     "table_id": {"type": "string", "label": "数据表", "required": True},
                     "filter": {"type": "string", "label": "过滤表达式"},
+                },
+            },
+            {
+                "type": "action.bitable_update",
+                "category": "action",
+                "label": "修改表格（多维表格）",
+                "schema": {
+                    "app_token": {"type": "string", "label": "多维表格", "required": True},
+                    "table_id": {"type": "string", "label": "数据表", "required": True},
+                    "record_id": {
+                        "type": "string",
+                        "label": "记录 ID",
+                        "required": True,
+                        "description": "要修改的记录 ID，可使用模板变量",
+                    },
+                    "fields": {
+                        "type": "text",
+                        "label": "更新字段 JSON",
+                        "required": True,
+                        "description": "例如 {\"状态\":\"已处理\",\"备注\":\"{{nodes.t1.text}}\"}",
+                    },
                 },
             },
             {

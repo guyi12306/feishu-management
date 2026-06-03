@@ -117,6 +117,24 @@ def _parse_filter(value: Any) -> dict | None:
     raise ExecError("查询表格节点 filter 需要是 JSON 对象")
 
 
+def _parse_update_fields(value: Any) -> dict:
+    if isinstance(value, dict):
+        if not value:
+            raise ExecError("修改表格节点 fields 不能为空")
+        return value
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            raise ExecError("修改表格节点 fields 不能为空")
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError as e:
+            raise ExecError(f"修改表格节点 fields 需要是 JSON 对象: {e.msg}")
+        if isinstance(parsed, dict) and parsed:
+            return parsed
+    raise ExecError("修改表格节点 fields 需要是非空 JSON 对象")
+
+
 def _parse_message_content(raw: Any) -> dict:
     if isinstance(raw, dict):
         return raw
@@ -234,6 +252,29 @@ async def _exec_node(
             raise ExecError(str(e))
         items = data.get("items") or []
         return {"records": items, "count": len(items)}
+
+    if ntype == "action.bitable_update":
+        app_token = cfg.get("app_token")
+        table_id = cfg.get("table_id")
+        record_id = str(cfg.get("record_id") or "").strip()
+        if not app_token or app_token == "<待选>":
+            raise ExecError("修改表格节点未配置 app_token")
+        if not table_id or table_id == "<待选>":
+            raise ExecError("修改表格节点未配置 table_id")
+        if not record_id or record_id == "<待选>":
+            raise ExecError("修改表格节点未配置 record_id")
+        fields = _parse_update_fields(cfg.get("fields"))
+        try:
+            cli = LarkClient.for_user(user_id, bot_id)
+            data = await cli.update_record(app_token, table_id, record_id, fields)
+        except LarkError as e:
+            raise ExecError(str(e))
+        return {
+            "record_id": record_id,
+            "fields": fields,
+            "record": data.get("record"),
+            "raw": data,
+        }
 
     if ntype == "action.send_message":
         try:
