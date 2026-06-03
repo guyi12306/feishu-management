@@ -1,0 +1,36 @@
+# Python
+.claude/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# 环境 / 密钥
+.env
+*.env.local
+deploy/production.env
+
+# 数据
+backend/data/
+*.db
+*.db-wal
+*.db-shm
+
+# 前端
+node_modules/
+dist/
+.vite/
+*.log
+*.tsbuildinfo
+web/vite.config.js
+web/vite.config.d.ts
+
+# 编辑器
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,136 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ────── 全局基础 ────── */
+@layer base {
+  html, body, #app {
+    @apply h-full;
+  }
+  body {
+    @apply text-ink-900 font-sans;
+    font-size: 14.5px;
+    line-height: 1.55;
+    /* 深海青金 · 浅色背景:多层径向 + 线性 */
+    background:
+      radial-gradient(
+        ellipse 80% 60% at 18% 6%,
+        rgba(165, 199, 214, 0.22),
+        transparent 60%
+      ),
+      radial-gradient(
+        ellipse 70% 55% at 92% 12%,
+        rgba(196, 161, 215, 0.18),
+        transparent 60%
+      ),
+      radial-gradient(
+        ellipse 90% 50% at 50% 100%,
+        rgba(212, 160, 86, 0.08),
+        transparent 60%
+      ),
+      linear-gradient(135deg, #F0F7F9 0%, #ECF1F5 45%, #EEEDF0 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+
+  /* text-caption 默认走次级灰;显式 text-ink-X 仍可覆盖(utilities 层比 base 高) */
+  .text-caption { color: theme('colors.ink.500'); }
+
+  /* 隐藏 webkit 默认滚动条样式,改成细线 */
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: rgba(15, 20, 25, 0.18);
+    border-radius: 999px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgba(15, 20, 25, 0.3);
+  }
+}
+
+/* ────── 玻璃面组件类 ────── */
+@layer components {
+  .glass {
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow:
+      0 8px 32px rgba(15, 20, 25, 0.04),
+      inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  }
+
+  .glass-strong {
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(32px) saturate(180%);
+    -webkit-backdrop-filter: blur(32px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    box-shadow:
+      0 24px 48px rgba(15, 20, 25, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  }
+
+  /* 平面元素:按钮/输入框,不上 blur */
+  .glass-flat {
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    box-shadow:
+      0 1px 2px rgba(15, 20, 25, 0.04),
+      inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  }
+
+  /* 按钮形态 */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2
+           h-9 px-4 rounded-md font-medium text-body
+           transition duration-200 ease-out-quart
+           select-none cursor-pointer;
+  }
+  .btn-primary {
+    @apply btn bg-brand-500 text-white hover:bg-brand-600 active:bg-brand-700
+           shadow-[0_4px_14px_rgba(79,70,229,0.28)];
+  }
+  .btn-primary:disabled {
+    @apply opacity-60 cursor-not-allowed;
+  }
+  .btn-ghost {
+    @apply btn text-ink-700 hover:bg-white/60;
+  }
+  .btn-secondary {
+    @apply btn glass-flat text-ink-900 hover:bg-white/85;
+  }
+
+  /* 输入框 */
+  .input {
+    @apply glass-flat
+           w-full h-10 px-3 rounded-md text-body text-ink-900
+           placeholder:text-ink-400
+           transition duration-200 ease-out-quart
+           focus:outline-none focus:border-brand-400
+           focus:shadow-[0_0_0_3px_rgba(79,70,229,0.15)];
+  }
+  .textarea {
+    @apply input h-auto py-2 resize-none;
+  }
+
+  /* 卡片(常规玻璃) */
+  .card {
+    @apply glass rounded-lg p-5;
+  }
+}
+
+/* ────── 工具类 ────── */
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { scrollbar-width: none; }
+
+  /* 主题渐变文本 */
+  .text-gradient-brand {
+    background: linear-gradient(135deg, #4F46E5 0%, #6979E8 100%);
+    -webkit-background-clip: text;
+            background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+}
