@@ -21,6 +21,13 @@ export interface BitableField {
   property?: Record<string, unknown>;
 }
 
+export interface ResolvedBitableLink {
+  app_token: string;
+  table_id?: string;
+  source?: string;
+  name?: string;
+}
+
 export const bitablesApi = {
   async list(botId?: string | null): Promise<Bitable[]> {
     const { data } = await client.get("/bitables", {
@@ -39,6 +46,14 @@ export const bitablesApi = {
   async fields(appToken: string, tableId: string, botId?: string | null): Promise<BitableField[]> {
     const { data } = await client.get(`/bitables/${appToken}/tables/${tableId}/fields`, {
       params: botId ? { bot_id: botId } : {},
+    });
+    return data;
+  },
+
+  async resolveLink(url: string, botId?: string | null): Promise<ResolvedBitableLink> {
+    const { data } = await client.post("/bitables/resolve-link", {
+      url,
+      bot_id: botId || undefined,
     });
     return data;
   },

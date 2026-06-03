@@ -122,6 +122,14 @@ class LarkClient:
             for f in data.get("items", [])
         ]
 
+    async def get_wiki_node(self, token: str) -> dict:
+        data = await self._request(
+            "GET",
+            "/wiki/v2/spaces/get_node",
+            params={"token": token},
+        )
+        return data.get("node") or data
+
     async def search_records(
         self,
         app_token: str,

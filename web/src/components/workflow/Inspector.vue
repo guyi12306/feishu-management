@@ -52,6 +52,7 @@ const chats = ref<Chat[]>([]);
 const loadingBitables = ref(false);
 const loadingTables = ref(false);
 const loadingChats = ref(false);
+const resolvingBitable = ref(false);
 const bitableError = ref("");
 const chatError = ref("");
 
@@ -120,6 +121,11 @@ async function loadTables() {
     tables.value = [];
     return;
   }
+  if (/^https?:\/\//i.test(selectedAppToken.value)) {
+    tables.value = [];
+    bitableError.value = "请先粘贴正确的飞书多维表格链接，系统会自动解析成可用的表格 ID";
+    return;
+  }
   const hasTableField = Object.values(fields.value).some((field) => field.type === "bitable_table");
   if (!hasTableField) return;
   loadingTables.value = true;
@@ -179,45 +185,94 @@ function setVal(key: string, val: any) {
   emit("update", props.node.id, { ...props.node.config, [key]: val });
 }
 
-function parseBitableInput(value: string): { appToken: string; tableId?: string } {
-  const text = value.trim();
-  if (!text) return { appToken: "" };
+interface ParsedBitableInput {
+  appToken?: string;
+  tableId?: string;
+  wikiToken?: string;
+  rawUrl?: string;
+}
 
-  let appToken = text;
+function parseBitableInput(value: string): ParsedBitableInput {
+  const text = value.trim();
+  if (!text) return {};
+
   let tableId = "";
   try {
     const url = new URL(text);
     const parts = url.pathname.split("/").filter(Boolean);
-    const baseIndex = parts.findIndex((part) => part === "base" || part === "bitable");
+    const baseIndex = parts.findIndex((part) => part === "base" || part === "bitable" || part === "wiki");
     if (baseIndex >= 0 && parts[baseIndex + 1]) {
-      appToken = parts[baseIndex + 1];
+      const token = decodeURIComponent(parts[baseIndex + 1]);
+      tableId =
+        url.searchParams.get("table") ??
+        url.searchParams.get("table_id") ??
+        url.searchParams.get("tableId") ??
+        "";
+      if (parts[baseIndex] === "wiki") {
+        return { wikiToken: token, tableId: tableId.trim() || undefined, rawUrl: text };
+      }
+      return { appToken: token, tableId: tableId.trim() || undefined };
     }
-    tableId =
-      url.searchParams.get("table") ??
-      url.searchParams.get("table_id") ??
-      url.searchParams.get("tableId") ??
-      "";
+    return { rawUrl: text };
   } catch {
     const appMatch = text.match(/\/(?:base|bitable)\/([^/?#]+)/);
+    const wikiMatch = text.match(/\/wiki\/([^/?#]+)/);
     const tableMatch = text.match(/[?&](?:table|table_id|tableId)=([^&#]+)/);
-    if (appMatch?.[1]) appToken = appMatch[1];
     if (tableMatch?.[1]) tableId = decodeURIComponent(tableMatch[1]);
+    if (wikiMatch?.[1]) {
+      return {
+        wikiToken: decodeURIComponent(wikiMatch[1]),
+        tableId: tableId.trim() || undefined,
+        rawUrl: text,
+      };
+    }
+    if (appMatch?.[1]) {
+      return {
+        appToken: decodeURIComponent(appMatch[1]),
+        tableId: tableId.trim() || undefined,
+      };
+    }
   }
 
-  return { appToken: appToken.trim(), tableId: tableId.trim() || undefined };
+  return /^https?:\/\//i.test(text) ? { rawUrl: text } : { appToken: text };
 }
 
-function setBitableFromInput(value: string) {
+async function setBitableFromInput(value: string) {
   if (!props.node) return;
   const parsed = parseBitableInput(value);
+  bitableError.value = "";
+
+  if (parsed.rawUrl && !parsed.appToken) {
+    resolvingBitable.value = true;
+    try {
+      const resolved = await bitablesApi.resolveLink(parsed.rawUrl, effectiveBotId.value);
+      if (!props.node) return;
+      const nextConfig: Record<string, any> = {
+        ...props.node.config,
+        app_token: resolved.app_token,
+      };
+      if (resolved.table_id || parsed.tableId) {
+        nextConfig.table_id = resolved.table_id || parsed.tableId;
+      } else {
+        nextConfig.table_id = "";
+      }
+      emit("update", props.node.id, nextConfig);
+    } catch (e: any) {
+      bitableError.value = e?.response?.data?.detail ?? e?.message ?? "多维表格链接解析失败";
+    } finally {
+      resolvingBitable.value = false;
+    }
+    return;
+  }
+
   const currentAppToken = String(props.node.config.app_token ?? "");
   const nextConfig: Record<string, any> = {
     ...props.node.config,
-    app_token: parsed.appToken,
+    app_token: parsed.appToken ?? "",
   };
   if (parsed.tableId) {
     nextConfig.table_id = parsed.tableId;
-  } else if (parsed.appToken !== currentAppToken) {
+  } else if ((parsed.appToken ?? "") !== currentAppToken) {
     nextConfig.table_id = "";
   }
   emit("update", props.node.id, nextConfig);
@@ -322,11 +377,10 @@ function setBitableToken(val: string) {
                   :value="props.node.config[key] ?? ''"
                   placeholder="粘贴多维表格链接或 app_token"
                   @change="(e) => setBitableFromInput((e.target as HTMLInputElement).value)"
-                  @blur="(e) => setBitableFromInput((e.target as HTMLInputElement).value)"
                 />
                 <select
                   class="input"
-                  :disabled="loadingBitables"
+                  :disabled="loadingBitables || resolvingBitable"
                   :value="props.node.config[key] ?? ''"
                   @change="(e) => setBitableToken((e.target as HTMLSelectElement).value)"
                 >
@@ -339,6 +393,9 @@ function setBitableToken(val: string) {
                     {{ bitable.name || bitable.app_token }}
                   </option>
                 </select>
+                <span v-if="resolvingBitable" class="text-caption text-ink-400 block">
+                  正在解析链接...
+                </span>
               </div>
 
               <div v-else-if="field.type === 'chat'" class="space-y-2">

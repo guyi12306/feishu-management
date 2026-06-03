@@ -70,6 +70,37 @@ class SmokeTest(unittest.TestCase):
                     "状态",
                 )
 
+    def test_resolve_bitable_links(self):
+        class FakeLarkClient:
+            async def get_wiki_node(self, token):
+                self.token = token
+                return {
+                    "obj_type": "bitable",
+                    "obj_token": "app_from_wiki",
+                    "title": "Wiki base",
+                }
+
+        with TestClient(app) as client:
+            client.post("/api/login", json={"username": "admin", "password": "admin123"})
+            base_response = client.post(
+                "/api/bitables/resolve-link",
+                json={"url": "https://example.feishu.cn/base/app123?table=tbl123"},
+            )
+            with patch.object(bitables_api.LarkClient, "for_user", return_value=FakeLarkClient()):
+                wiki_response = client.post(
+                    "/api/bitables/resolve-link",
+                    json={"url": "https://example.feishu.cn/wiki/wiki123"},
+                )
+
+        self.assertEqual(base_response.status_code, 200)
+        self.assertEqual(
+            {"app_token": "app123", "source": "bitable", "table_id": "tbl123"},
+            base_response.json(),
+        )
+        self.assertEqual(wiki_response.status_code, 200)
+        self.assertEqual("app_from_wiki", wiki_response.json()["app_token"])
+        self.assertEqual("wiki", wiki_response.json()["source"])
+
     def test_chat_resource_endpoint(self):
         class FakeLarkClient:
             async def list_chats(self):
